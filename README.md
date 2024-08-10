@@ -18,7 +18,7 @@ Make lightweight multiplatform GUI application with native Java only for conveni
 - support standard Swing themes (AKA Look and Feel)
 
 ### ⏬ Getting
-Download zip file from [Releases](releases/latest) section of this repository, unzip and [launch it](#Launch).
+Download zip file from [Releases](https://github.com/anrydas/xmltree/releases) section of this repository, unzip and [launch it](#Launch).
 on Linux `launch.sh` or on Windows `launch.cmd`
 Or clone the repository and use Maven to build the Application
 ```shell
