@@ -1,0 +1,1 @@
+javaw -jar xmltree.jar %1
