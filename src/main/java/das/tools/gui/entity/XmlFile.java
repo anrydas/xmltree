@@ -4,6 +4,7 @@ import das.tools.gui.Utils;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
+import javax.swing.*;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -48,7 +49,9 @@ public class XmlFile {
                 this.root = document.createElement(TAG_NO_FILE);
             }
         } catch (ParserConfigurationException | SAXException | IOException e) {
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, e.getLocalizedMessage(),
+                    String.format("Error open file '%s'", fileName),
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
