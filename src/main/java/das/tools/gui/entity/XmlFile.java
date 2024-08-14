@@ -32,7 +32,7 @@ public class XmlFile {
         openNewFile(fileName);
     }
 
-    public void openNewFile(String fileName){
+    private void openNewFile(String fileName){
         this.fileName = fileName;
         this.file = new File(fileName);
         try {

@@ -12,6 +12,9 @@ public class AppActions {
     private final CopyAttrValuesAction copyAttrValuesAction;
     private final CopyAsKeyValueAction copyKeyValueAction;
     private final CopyAsXmlAction copyXmlAction;
+    private final FindInAction searchAction;
+    private final FindForwardAction findForwardAction;
+    private final FindBackwardAction findBackwardAction;
 
     public AppActions(XmlForm form) {
         openFileAction = new OpenFileAction(form, "Open", null);
@@ -23,6 +26,9 @@ public class AppActions {
         copyAttrValuesAction = new CopyAttrValuesAction(form, "Copy attribute(s) Value(s)", null);
         copyKeyValueAction = new CopyAsKeyValueAction(form, "Copy All as 'key=value'", null);
         copyXmlAction = new CopyAsXmlAction(form, "Copy All as XML", null);
+        searchAction = new FindInAction(form, "Find in...", null);
+        findForwardAction = new FindForwardAction(form, "Find next", null);
+        findBackwardAction = new FindBackwardAction(form, "Find prev", null);
     }
 
     public CloseThisWindowsMenuAction getCloseThisAction() {
@@ -59,5 +65,17 @@ public class AppActions {
 
     public CopyAsXmlAction getCopyXmlAction() {
         return copyXmlAction;
+    }
+
+    public FindInAction getSearchAction() {
+        return searchAction;
+    }
+
+    public FindForwardAction getFindForwardAction() {
+        return findForwardAction;
+    }
+
+    public FindBackwardAction getFindBackwardAction() {
+        return findBackwardAction;
     }
 }

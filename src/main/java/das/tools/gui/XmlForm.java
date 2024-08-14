@@ -1,32 +1,30 @@
 package das.tools.gui;
 
-import das.tools.gui.entity.AttrInfo;
-import das.tools.gui.entity.FilesFilter;
-import das.tools.gui.entity.XmlFile;
-import das.tools.gui.entity.XmlTagInfo;
+import das.tools.gui.entity.*;
 import das.tools.gui.menu.PopupClickListener;
 import das.tools.gui.menu.AppMenus;
 import das.tools.gui.menu.action.AppActions;
+import das.tools.gui.search.SearchProcessor;
+import das.tools.gui.search.SearchTask;
+import das.tools.gui.search.SearchType;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.swing.*;
-import javax.swing.event.MenuEvent;
-import javax.swing.event.MenuListener;
-import javax.swing.event.TreeSelectionEvent;
-import javax.swing.event.TreeSelectionListener;
+import javax.swing.event.*;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
+import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.WindowEvent;
+import java.awt.event.*;
+import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
 
 public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
     public static final JFileChooser dlgOpen = new JFileChooser();
@@ -34,6 +32,7 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
     protected static final String FMT_TAG = "<i>tag:</i>&nbsp;<font color='blue' size='5'><b>%s</b></font>%s<br/>";
     protected static final String FMT_VALUE = "&nbsp;=&nbsp;\"<font color='green' size='5'><b>%s</b></font>\"";
     protected static final String FMT_ATTR = "<i>attr:</i>&nbsp;<font color='red' size='5'><b>%s</b></font>=\"<font color='green' size='5'><b>%s</b></font>\"<br/>";
+    private final AppActions appActions;
     private XmlFile xmlFile = null;
     private String fileName = "";
     private static boolean isFirst = true;
@@ -41,22 +40,35 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
     private JFrame ownFrame;
     private final GuiView guiView;
     private final AppMenus appMenus;
+    private SearchProcessor searchProcessor;
 
     static {
         framesList = new ArrayList<>(5);
     }
 
+
     public XmlForm(String fileName) {
         this.fileName = fileName;
-        AppActions appActions = new AppActions(this);
+        appActions = new AppActions(this);
         this.appMenus = new AppMenus(this, appActions);
-        guiView = new GuiView(this);
+        guiView = new GuiView();
+        guiView.getBtOpen().addActionListener(appActions.getOpenFileAction());
+        guiView.getTextAttr().addMouseListener(new PopupClickListener(this, appMenus));
+        guiView.getSearchButton().addActionListener((e) -> btSearchClicked());
+        guiView.getPreviousButton().addActionListener((e) -> findBackward());
+        guiView.getNextButton().addActionListener((e) -> findForward());
         javax.swing.SwingUtilities.invokeLater(() -> {
-            createUIComponents();
+            openFileDialogExecute();
             createGUI();
+            createUIComponents();
         });
-        (guiView.getBtOpen()).addActionListener(appActions.getOpenFileAction());
-        (guiView.getTextAttr()).addMouseListener(new PopupClickListener(this, appMenus));
+        guiView.getSearchProgressBar().addChangeListener(getChangeProgressListener());
+    }
+
+    private ChangeListener getChangeProgressListener() {
+        return changeEvent -> {
+            setSearchResultText(0, searchProcessor.getTotalResults());
+        };
     }
 
     public void openFile() {
@@ -89,7 +101,7 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         }
     }
     public void createGUI() {
-        JFrame frame = new JFrame(String.format("Xml Tree: %s", xmlFile.getName()));
+        JFrame frame = new JFrame();
         frame.setMinimumSize(new Dimension(800, 600));
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setApplicationIcon(frame);
@@ -105,12 +117,27 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         ownFrame = frame;
         JMenu fileMenu = guiView.getFileMenu();
         appMenus.getFileMenu(fileMenu);
+        JMenu searchMenu = guiView.getSearchMenu();
+        appMenus.getSearchMenu(searchMenu);
         JMenu windowsMenu = guiView.getWindowMenu();
         windowsMenu.addMenuListener(windowsMenuListener(windowsMenu));
         JMenu themeMenu = guiView.getThemeMenu();
         themeMenu.addMenuListener(themeMenuListener(themeMenu));
+        addEscapeKeyAction(frame);
         frame.pack();
         frame.setVisible(true);
+    }
+
+    private void addEscapeKeyAction(JFrame frame) {
+        KeyStroke keyStroke = KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0);
+        JComponent pn = frame.getRootPane();
+        pn.getActionMap().put("Escape", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent actionEvent) {
+                hideSearchPanel();
+            }
+        });
+        pn.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "Escape");
     }
 
     private void setApplicationIcon(JFrame frame) {
@@ -161,19 +188,10 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
     }
 
     private void createUIComponents() {
-        if (isFirst) {
-            isFirst = false;
-            dlgOpen.setCurrentDirectory(new File(System.getProperty("user.dir")));
-            String parameterFile = Main.getAppParameter();
-            if (Utils.isNotEmpty(parameterFile)) {
-                fileName = parameterFile;
-                dlgOpen.setCurrentDirectory(new File(fileName));
-            } else {
-                fileName = selectFile();
-            }
-        }
         xmlFile = new XmlFile(fileName);
+        ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
         DefaultMutableTreeNode top = new DefaultMutableTreeNode(xmlFile.getName());
+        sleep();
         DefaultMutableTreeNode root =
                 new DefaultMutableTreeNode(
                         new XmlTagInfo(xmlFile.getRootElement()));
@@ -185,6 +203,20 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         tree.addTreeSelectionListener(this);
         tree.setShowsRootHandles(true);
+    }
+
+    private void openFileDialogExecute() {
+        if (isFirst) {
+            isFirst = false;
+            dlgOpen.setCurrentDirectory(new File(System.getProperty("user.dir")));
+            String parameterFile = Main.getAppParameter();
+            if (Utils.isNotEmpty(parameterFile)) {
+                fileName = parameterFile;
+                dlgOpen.setCurrentDirectory(new File(fileName));
+            } else {
+                fileName = selectFile();
+            }
+        }
     }
 
     private void createNodes(DefaultMutableTreeNode node, Node element) {
@@ -324,5 +356,140 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
             frame.toFront();
             frame.repaint();
         });
+    }
+
+    public void findIn() {
+        JPanel searchPanel = guiView.getSearchPanel();
+        boolean isPanelVisible = searchPanel.isVisible();
+        if (!isPanelVisible) {
+            showSearchPanel();
+        } else {
+            JTextField textField = guiView.getSearchTextField();
+            if (Utils.isNotEmpty(textField.getText())) {
+                textField.setText("");
+                textField.requestFocus();
+                initSearch();
+            } else {
+                hideSearchPanel();
+            }
+        }
+    }
+
+    private void showSearchPanel() {
+        initSearch();
+        (guiView.getSearchPanel()).setVisible(true);
+        guiView.getSearchTextField().requestFocus();
+    }
+
+    private void hideSearchPanel() {
+        (guiView.getSearchPanel()).setVisible(false);
+        initSearch();
+    }
+
+    private void initSearch() {
+        searchProcessor = null;
+        setSearchResultText(0, 0);
+        setFwdBwdControlsEnabled(false);
+    }
+
+    private void setSearchResultText(int current, int total) {
+        guiView.getFoundLabel().setText(String.format(GuiView.FOUND_RESULT_LABEL, (total > 0) ? current + 1 : 0, total));
+    }
+
+    private void btSearchClicked() {
+        initSearch();
+        String searchString = guiView.getSearchTextField().getText();
+        SearchType searchType = new SearchType(guiView.getSearchInTagNames().isSelected(),
+                guiView.getSearchInTagValues().isSelected(),
+                guiView.getSearchInAttrNames().isSelected(),
+                guiView.getSearchInAttrValues().isSelected());
+        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) guiView.getTree().getModel().getRoot();
+        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) guiView.getTree().getLastSelectedPathComponent();
+        searchProcessor = new SearchProcessor(searchString, rootNode, selectedNode, searchType);
+        searchWithProgress();
+    }
+
+    private void searchWithProgress() {
+        guiView.getSearchButton().setEnabled(false);
+        guiView.getSearchProgressBar().setVisible(true);
+        SearchTask task = new SearchTask(this, searchProcessor);
+        task.addPropertyChangeListener(progressChange());
+        task.execute();
+    }
+
+    public void searchCompleted() {
+        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) guiView.getTree().getModel().getRoot();
+        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) guiView.getTree().getLastSelectedPathComponent();
+        if (searchProcessor.isNotEmptyResult()) {
+            if (selectedNode != null && selectedNode != rootNode) {
+                searchProcessor.setCurrentSearchResultValue();
+                showResultInTree(searchProcessor.getCurrentSearchResultValue());
+            } else {
+                findForward();
+            }
+            setFwdBwdControlsEnabled(true);
+        }
+        setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
+        guiView.getSearchButton().setEnabled(true);
+        guiView.getSearchProgressBar().setVisible(false);
+    }
+
+    private void setFwdBwdControlsEnabled(boolean value) {
+        appActions.getFindForwardAction().setEnabled(value);
+        appActions.getFindBackwardAction().setEnabled(value);
+        guiView.getPreviousButton().setEnabled(value);
+        guiView.getNextButton().setEnabled(value);
+    }
+
+    public PropertyChangeListener progressChange() {
+        return evt -> {
+            if ("progress".equals(evt.getPropertyName())) {
+                int progress = (Integer) evt.getNewValue();
+                guiView.getSearchProgressBar().setIndeterminate(false);
+                guiView.getSearchProgressBar().setValue(progress);
+                setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
+            }
+        };
+    }
+
+    public void findForward() {
+        if (searchProcessor != null && searchProcessor.isNotEmptyResult()) {
+            showResultInTree(searchProcessor.getNextSearchResult());
+            setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
+            setSelectedXmlText();
+        }
+    }
+
+    public void findBackward() {
+        if (searchProcessor != null && searchProcessor.isNotEmptyResult()) {
+            showResultInTree(searchProcessor.getPrevSearchResult());
+            setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor. getTotalResults());
+            setSelectedXmlText();
+        }
+    }
+
+    private void setSelectedXmlText() {
+        JTextArea text = guiView.getRawXmlText();
+        text.requestFocus();
+        int start = (int) searchProcessor.getCurrentSearchResultValue().getResultStart();
+        if (start > -1) {
+            text.setSelectionStart(start);
+            text.setSelectionEnd(start + searchProcessor.getCurrentSearchResultValue().getResultLength());
+        } else {
+            text.setSelectionStart(0);
+            text.setSelectionEnd(text.getText().length());
+        }
+    }
+
+    private void showResultInTree(SearchResult results) {
+        TreePath path = new TreePath(results.getTreeNode().getPath());
+        JTree tree = guiView.getTree();
+        tree.setSelectionPath(path);
+        tree.scrollPathToVisible(path);
+        tree.expandPath(path);
+    }
+
+    public JProgressBar getProgressBar() {
+        return guiView.getSearchProgressBar();
     }
 }
