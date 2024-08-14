@@ -57,12 +57,12 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         guiView.getSearchButton().addActionListener((e) -> btSearchClicked());
         guiView.getPreviousButton().addActionListener((e) -> findBackward());
         guiView.getNextButton().addActionListener((e) -> findForward());
+        guiView.getSearchProgressBar().addChangeListener(getChangeProgressListener());
         javax.swing.SwingUtilities.invokeLater(() -> {
             openFileDialogExecute();
             createGUI();
-            createUIComponents();
+            loadDataIntoTree();
         });
-        guiView.getSearchProgressBar().addChangeListener(getChangeProgressListener());
     }
 
     private ChangeListener getChangeProgressListener() {
@@ -187,16 +187,24 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         };
     }
 
-    private void createUIComponents() {
+    private void loadDataIntoTree() {
         xmlFile = new XmlFile(fileName);
-        ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
         DefaultMutableTreeNode top = new DefaultMutableTreeNode(xmlFile.getName());
-        sleep();
         DefaultMutableTreeNode root =
                 new DefaultMutableTreeNode(
                         new XmlTagInfo(xmlFile.getRootElement()));
-        createNodes(root, xmlFile.getRootNode());
         top.add(root);
+        Thread thread = new Thread() {
+            @Override
+            public void run() {
+                super.run();
+                createNodes(root, xmlFile.getRootNode());
+                ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
+            }
+        };
+        thread.setDaemon(true);
+        thread.start();
+
         DefaultTreeModel model = new DefaultTreeModel(top);
         JTree tree = guiView.getTree();
         tree.setModel(model);
