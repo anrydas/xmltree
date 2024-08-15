@@ -1,9 +1,13 @@
 package das.tools.gui;
 
+import das.tools.gui.entity.XmlTagInfo;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.swing.tree.DefaultMutableTreeNode;
+import java.awt.*;
+import java.awt.datatransfer.Clipboard;
+import java.awt.datatransfer.StringSelection;
 import java.io.File;
 
 public class Utils {
@@ -43,5 +47,17 @@ public class Utils {
             }
         }
         return count;
+    }
+
+    public static int getTagAttrCount(XmlTagInfo tag) {
+        int res = 0;
+        if (tag != null && tag.getAttributes() != null)
+            res = tag.getAttributes().size();
+        return res;
+    }
+
+    public static void copyToClip(String value) {
+        Clipboard clip = Toolkit.getDefaultToolkit().getSystemClipboard();
+        clip.setContents(new StringSelection(value), null);
     }
 }

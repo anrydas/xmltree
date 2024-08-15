@@ -21,12 +21,9 @@ import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
-import java.awt.datatransfer.Clipboard;
-import java.awt.datatransfer.StringSelection;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
 import java.awt.event.WindowEvent;
-import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
@@ -271,11 +268,6 @@ public class XmlForm implements TreeSelectionListener {
         return treeNode == null || treeNode.isRoot();
     }
 
-    private void copyToClip(String value) {
-        Clipboard clip = Toolkit.getDefaultToolkit().getSystemClipboard();
-        clip.setContents(new StringSelection(value), null);
-    }
-
     private XmlTagInfo getCurrentTag() {
         DefaultMutableTreeNode treeNode = (DefaultMutableTreeNode)
                 guiView.getTree().getLastSelectedPathComponent();
@@ -283,10 +275,7 @@ public class XmlForm implements TreeSelectionListener {
     }
 
     public int getCurrentTagAttrCount() {
-        int res = 0;
-        if (getCurrentTag() != null && getCurrentTag().getAttributes() != null)
-            res = getCurrentTag().getAttributes().size();
-        return res;
+        return Utils.getTagAttrCount(getCurrentTag());
     }
 
     public void copyAttributesNames() {
@@ -297,18 +286,18 @@ public class XmlForm implements TreeSelectionListener {
             for (AttrInfo attrInfo : attrs) {
                 sb.append(attrInfo.getName()).append("\n");
             }
-            copyToClip(sb.toString());
+            Utils.copyToClip(sb.toString());
         }
     }
 
     public void copyTagAction() {
         XmlTagInfo tag = getCurrentTag();
-        copyToClip(tag.getTagName());
+        Utils.copyToClip(tag.getTagName());
     }
 
     public void copyAllAsXmlAction() {
         XmlTagInfo tag = getCurrentTag();
-        copyToClip(tag.getText());
+        Utils.copyToClip(tag.getText());
     }
 
     public void copyAsKeyValueAction() {
@@ -323,7 +312,7 @@ public class XmlForm implements TreeSelectionListener {
                 sb.append(attrInfo.getName()).append("=").append(attrInfo.getValue()).append("\n");
             }
         }
-        copyToClip(sb.toString());
+        Utils.copyToClip(sb.toString());
     }
 
     public void copyAttributesValues() {
@@ -333,7 +322,7 @@ public class XmlForm implements TreeSelectionListener {
         for (AttrInfo attrInfo : attrs) {
             sb.append(attrInfo.getValue()).append("\n");
         }
-        copyToClip(sb.toString());
+        Utils.copyToClip(sb.toString());
     }
 
     public List<JFrame> getFramesList() {
@@ -344,7 +333,7 @@ public class XmlForm implements TreeSelectionListener {
         for (JFrame frame : framesList) {
             if (frame != this.ownFrame) frame.dispose();
         }
-        ownFrame.dispatchEvent(new WindowEvent(ownFrame, WindowEvent.WINDOW_CLOSING));
+        closeThis();
     }
 
     public void closeThis() {
@@ -381,12 +370,12 @@ public class XmlForm implements TreeSelectionListener {
 
     private void showSearchPanel() {
         initSearch();
-        (guiView.getSearchPanel()).setVisible(true);
+        guiView.getSearchPanel().setVisible(true);
         guiView.getSearchTextField().requestFocus();
     }
 
     private void hideSearchPanel() {
-        (guiView.getSearchPanel()).setVisible(false);
+        guiView.getSearchPanel().setVisible(false);
         initSearch();
     }
 
@@ -417,7 +406,6 @@ public class XmlForm implements TreeSelectionListener {
         guiView.getSearchButton().setEnabled(false);
         guiView.getSearchProgressBar().setVisible(true);
         SearchTask task = new SearchTask(this, searchProcessor);
-        task.addPropertyChangeListener(progressChange());
         task.execute();
     }
 
@@ -445,34 +433,27 @@ public class XmlForm implements TreeSelectionListener {
         guiView.getNextButton().setEnabled(value);
     }
 
-    public PropertyChangeListener progressChange() {
-        return evt -> {
-            if ("progress".equals(evt.getPropertyName())) {
-                int progress = (Integer) evt.getNewValue();
-                guiView.getSearchProgressBar().setIndeterminate(false);
-                guiView.getSearchProgressBar().setValue(progress);
-                setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
-            }
-        };
-    }
-
     public void findForward() {
-        if (searchProcessor != null && searchProcessor.isNotEmptyResult()) {
-            showResultInTree(searchProcessor.getNextSearchResult());
-            setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
-            setSelectedXmlText();
-        }
+        doFind(true);
     }
 
     public void findBackward() {
+        doFind(false);
+    }
+
+    private void doFind(boolean forward) {
         if (searchProcessor != null && searchProcessor.isNotEmptyResult()) {
-            showResultInTree(searchProcessor.getPrevSearchResult());
+            if (forward) {
+                showResultInTree(searchProcessor.getNextSearchResult());
+            } else {
+                showResultInTree(searchProcessor.getPrevSearchResult());
+            }
             setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor. getTotalResults());
-            setSelectedXmlText();
+            setFindPositionText();
         }
     }
 
-    private void setSelectedXmlText() {
+    private void setFindPositionText() {
         JTextArea text = guiView.getRawXmlText();
         text.requestFocus();
         int start = (int) searchProcessor.getCurrentSearchResultValue().getResultStart();
@@ -493,7 +474,7 @@ public class XmlForm implements TreeSelectionListener {
         tree.expandPath(path);
     }
 
-    public JProgressBar getProgressBar() {
+    public JProgressBar getSearchProgressBar() {
         return guiView.getSearchProgressBar();
     }
 

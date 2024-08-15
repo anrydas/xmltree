@@ -11,7 +11,7 @@ public class SearchTask extends SwingWorker<Void, Void> {
     public SearchTask(XmlForm form, SearchProcessor searchProcessor) {
         this.form = form;
         this.searchProcessor = searchProcessor;
-        this.searchProcessor.setProgressBar(form.getProgressBar());
+        this.searchProcessor.setProgressBar(form.getSearchProgressBar());
     }
 
     @Override
