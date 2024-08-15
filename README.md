@@ -13,7 +13,7 @@ Make lightweight multiplatform GUI application with native Java only for conveni
 - useful Tags and Attributes showing
 - possibility of multiple Tag's and Attribute's Names and Values copying
 - multiple independent windows interface
-- lightweight (less than 51Kb jar file, 21Kb of that - images)
+- lightweight (less than 100Kb jar file, 21Kb of that - images)
 - multiplatform
 - quick start and easy to use
 - support standard Swing themes (AKA Look and Feel)
