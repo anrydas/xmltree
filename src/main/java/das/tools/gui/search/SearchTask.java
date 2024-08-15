@@ -24,6 +24,5 @@ public class SearchTask extends SwingWorker<Void, Void> {
     protected void done() {
         super.done();
         form.searchCompleted();
-        System.out.println(searchProcessor);
     }
 }
