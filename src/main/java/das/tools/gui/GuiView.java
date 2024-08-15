@@ -237,9 +237,9 @@ public class GuiView {
     }
 
     private JPanel getResultsPanel() {
-        resultsPanel = new JPanel();
+        JPanel panel = new JPanel();
         GridBagLayout layout = new GridBagLayout();
-        resultsPanel.setLayout(layout);
+        panel.setLayout(layout);
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.fill = GridBagConstraints.HORIZONTAL;
 
@@ -247,12 +247,11 @@ public class GuiView {
         foundLabel = new JLabel(String.format(FOUND_RESULT_LABEL, 0, 0));
         pnFound.add(foundLabel);
         gbc.gridy = 0; gbc.gridx = 0;
-        resultsPanel.add(pnFound, gbc);
+        panel.add(pnFound, gbc);
         searchProgressBar = new JProgressBar();
         searchProgressBar.setStringPainted(true);
-        //searchProgressBar.setString("Search in progress...");
         gbc.gridy = 1; gbc.gridx = 0;
-        resultsPanel.add(searchProgressBar, gbc);
+        panel.add(searchProgressBar, gbc);
         searchProgressBar.setVisible(false);
 
         JPanel pnGo = new JPanel();
@@ -261,9 +260,9 @@ public class GuiView {
         pnGo.add(previousButton);
         pnGo.add(nextButton);
         gbc.gridy = 2; gbc.gridx = 0;
-        resultsPanel.add(pnGo, gbc);
+        panel.add(pnGo, gbc);
 
-        return resultsPanel;
+        return panel;
     }
 
     public JMenuBar getMenuBar() {
