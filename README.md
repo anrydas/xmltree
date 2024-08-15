@@ -9,10 +9,11 @@ Make lightweight multiplatform GUI application with native Java only for conveni
 ### 📃 Features
 - shows XML file structure as tree
 - auto file formatting (AKA Fine Print)
+- flexible configured fuzzy search in XML 
 - useful Tags and Attributes showing
 - possibility of multiple Tag's and Attribute's Names and Values copying
 - multiple independent windows interface
-- lightweight (less than 51Kb jar file, 21Kb of that - images)
+- lightweight (less than 100Kb jar file, 21Kb of that - images)
 - multiplatform
 - quick start and easy to use
 - support standard Swing themes (AKA Look and Feel)
@@ -48,16 +49,21 @@ If file in parameter have wrong format, or it doesn't exist the Open File Dialog
    - **Copy attribute(s) Value(s)** - copying **All** Attribute's values of the current Tag (green) into system clipboard
    - **Copy All as 'key=value'** - copying **All** Tag and Attribute's names and values of the current Tag (green) as **key=value** into system clipboard
    - **Copy All as XML** - copying formatted XML view's content into system clipboard
+5. Search panel
 
 ### 📄 Application Menu<a id='AppMenu'/>
 1. **File**
     - **Open** - opens new XML file in new window
     - **Exit** - clos All opened windows and exit application
-2. **Theme** - select Theme (Look and Fill) for All opened windows
+2. **Search**
+   - **Find in...** - show or hide Search panel, could be hide by **Esc** key presses too
+    - **Find next** - show Next search result
+    - **Find prev** - show Previous search result
 3. **Windows**
     - **Close this** - close active window
     - **Close all** - clos All opened windows and exit application (the same of `File -> Exit`)
     - **Xml Tree: <file_name>** - switch (make active) to other opened window with **file_name** in 
+4. **Theme** - select Theme (Look and Fill) for all opened windows
 
 ### 🐞 Known issues
 - If you are using Windows with display's Scale greater than 100% it will be useful to launch the application with JRE8 because it makes interface more pretty with smaller controls than JREs greater than 8.

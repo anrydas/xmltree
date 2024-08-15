@@ -1,10 +1,9 @@
 package das.tools.gui.menu;
 
 import das.tools.gui.XmlForm;
-import das.tools.gui.menu.action.*;
+import das.tools.gui.menu.action.AppActions;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 
@@ -95,5 +94,16 @@ public class AppMenus extends JPopupMenu {
 
         openItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_O, InputEvent.CTRL_MASK));
         exitItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.ALT_MASK));
+    }
+
+    public void getSearchMenu(JMenu parent) {
+        JMenuItem searchItem = parent.add(actions.getSearchAction());
+        searchItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F, InputEvent.CTRL_MASK));
+        JMenuItem findForwardItem = parent.add(actions.getFindForwardAction());
+        findForwardItem.setAccelerator(KeyStroke.getKeyStroke("F3"));
+        JMenuItem findBackwardItem = parent.add(actions.getFindBackwardAction());
+        findBackwardItem.setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F3, KeyEvent.SHIFT_MASK));
+        actions.getFindForwardAction().setEnabled(false);
+        actions.getFindBackwardAction().setEnabled(false);
     }
 }

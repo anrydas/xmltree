@@ -25,14 +25,8 @@ public class XmlTagInfo {
                 this.value = firstChild.getTextContent().trim();
             }
         } else {
-            this.text = "There is no file selected.\nTo select the file press 'Open' button\nor\nlaunch the Application with file name as 1st parameter.";
+            this.text = "There is no file selected.\nTo select file press 'Open' button\nor\nlaunch the Application with file name as 1st parameter.";
         }
-    }
-
-    public XmlTagInfo(String tagName, List<AttrInfo> attributes, String text) {
-        this.tagName = tagName;
-        this.attributes = attributes;
-        this.text = text;
     }
 
     public String getTagName() {
@@ -75,18 +69,5 @@ public class XmlTagInfo {
         } catch (TransformerException e) {
             throw new RuntimeException(e);
         }
-    }
-
-    private String getMinSpaces(String text) {
-        Pattern pattern = Pattern.compile("\\s+<");
-        Matcher matcher = pattern.matcher(text);
-        String res = matcher.find() ? matcher.group() : "";
-        while (matcher.find()) {
-            if (matcher.group().length() < res.length()) {
-                res = matcher.group();
-            }
-        }
-        res = res.replace("\n","");
-        return res.length() > 0 ? res.substring(0, res.length() - 1) : res;
     }
 }

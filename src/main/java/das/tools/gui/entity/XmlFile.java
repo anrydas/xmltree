@@ -4,6 +4,8 @@ import das.tools.gui.Utils;
 import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
+import javax.swing.*;
+import javax.swing.tree.DefaultMutableTreeNode;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -26,12 +28,13 @@ public class XmlFile {
     private String fileName = "";
     private File file = null;
     private Node root = null;
+    private int allNodesCount;
 
     public XmlFile(String fileName) {
         openNewFile(fileName);
     }
 
-    public void openNewFile(String fileName){
+    private void openNewFile(String fileName){
         this.fileName = fileName;
         this.file = new File(fileName);
         try {
@@ -47,8 +50,11 @@ public class XmlFile {
                 document = db.newDocument();
                 this.root = document.createElement(TAG_NO_FILE);
             }
+            allNodesCount = Utils.getNodesCount(root) - 1;
         } catch (ParserConfigurationException | SAXException | IOException e) {
-            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, e.getLocalizedMessage(),
+                    String.format("Error open file '%s'", fileName),
+                    JOptionPane.ERROR_MESSAGE);
         }
     }
 
@@ -64,17 +70,6 @@ public class XmlFile {
         return root;
     }
 
-    public List<String> getChildListStr(Node node){
-        List<String> L = new ArrayList<String>();
-        NodeList list = node.getChildNodes();
-        for(int i=0; i<list.getLength();i++){
-            if(list.item(i).getNodeType() == Node.ELEMENT_NODE) {
-                L.add(list.item(i).getNodeName());
-            }
-        }
-        return L;
-    }
-
     public static List<AttrInfo> getAttributesList(Node node){
         List<AttrInfo> list = null;
         if(node.hasAttributes()){
@@ -85,10 +80,6 @@ public class XmlFile {
             }
         }
         return list;
-    }
-
-    public String getTagText(Node node){
-        return node.getNodeValue();
     }
 
     public NodeList getChild(Node node){
@@ -105,5 +96,9 @@ public class XmlFile {
 
     public String getFullFileName() {
         return file.getAbsolutePath();
+    }
+
+    public int getAllNodesCount() {
+        return allNodesCount;
     }
 }
