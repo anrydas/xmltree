@@ -70,17 +70,6 @@ public class XmlFile {
         return root;
     }
 
-    public List<String> getChildListStr(Node node){
-        List<String> L = new ArrayList<String>();
-        NodeList list = node.getChildNodes();
-        for(int i=0; i<list.getLength();i++){
-            if(list.item(i).getNodeType() == Node.ELEMENT_NODE) {
-                L.add(list.item(i).getNodeName());
-            }
-        }
-        return L;
-    }
-
     public static List<AttrInfo> getAttributesList(Node node){
         List<AttrInfo> list = null;
         if(node.hasAttributes()){
@@ -91,10 +80,6 @@ public class XmlFile {
             }
         }
         return list;
-    }
-
-    public String getTagText(Node node){
-        return node.getNodeValue();
     }
 
     public NodeList getChild(Node node){
@@ -115,13 +100,5 @@ public class XmlFile {
 
     public int getAllNodesCount() {
         return allNodesCount;
-    }
-
-    private int getNodesCount(DefaultMutableTreeNode node) {
-        int count = 1;
-        for (int i = 0; i < node.getChildCount(); i++) {
-            count = count + getNodesCount((DefaultMutableTreeNode) node.getChildAt(i));
-        }
-        return count;
     }
 }

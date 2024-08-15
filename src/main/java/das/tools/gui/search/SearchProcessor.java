@@ -108,11 +108,15 @@ public class SearchProcessor {
         String searchString = searchResult.getSearchString();
         int stringLength = searchString.length();
         if (currentWord.toLowerCase().contains(searchString.toLowerCase()) ||
-                ((LevenshteinDistance.calculateDynamic(searchString.toLowerCase(), currentWord.toLowerCase()) * 100 / stringLength) <= MAX_DISTANCE_OF_LENGTH_PERCENT)) {
+                (distanceOfLengthPercent(currentWord, searchString, stringLength) <= MAX_DISTANCE_OF_LENGTH_PERCENT)) {
             XmlTagInfo tagInfo = (XmlTagInfo) node.getUserObject();
             searchResult.putIntoResult(node, tagInfo.getText().toLowerCase().indexOf(searchString, pos), stringLength,
                     selectedTreeNode != null && isAfterStartSearchPosition);
         }
+    }
+
+    private int distanceOfLengthPercent(String currentWord, String searchString, int stringLength) {
+        return LevenshteinDistance.calculateDynamic(searchString.toLowerCase(), currentWord.toLowerCase()) * 100 / stringLength;
     }
 
     public boolean isNotEmptyResult() {

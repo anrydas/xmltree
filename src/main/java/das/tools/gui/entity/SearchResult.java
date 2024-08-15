@@ -32,10 +32,6 @@ public class SearchResult {
         return startSearchPositionHere;
     }
 
-    public void setStartSearchPositionHere(boolean startSearchPositionHere) {
-        this.startSearchPositionHere = startSearchPositionHere;
-    }
-
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
