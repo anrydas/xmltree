@@ -5,6 +5,7 @@ import org.w3c.dom.*;
 import org.xml.sax.SAXException;
 
 import javax.swing.*;
+import javax.swing.tree.DefaultMutableTreeNode;
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
@@ -27,6 +28,7 @@ public class XmlFile {
     private String fileName = "";
     private File file = null;
     private Node root = null;
+    private int allNodesCount;
 
     public XmlFile(String fileName) {
         openNewFile(fileName);
@@ -48,6 +50,7 @@ public class XmlFile {
                 document = db.newDocument();
                 this.root = document.createElement(TAG_NO_FILE);
             }
+            allNodesCount = Utils.getNodesCount(root) - 1;
         } catch (ParserConfigurationException | SAXException | IOException e) {
             JOptionPane.showMessageDialog(null, e.getLocalizedMessage(),
                     String.format("Error open file '%s'", fileName),
@@ -108,5 +111,17 @@ public class XmlFile {
 
     public String getFullFileName() {
         return file.getAbsolutePath();
+    }
+
+    public int getAllNodesCount() {
+        return allNodesCount;
+    }
+
+    private int getNodesCount(DefaultMutableTreeNode node) {
+        int count = 1;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            count = count + getNodesCount((DefaultMutableTreeNode) node.getChildAt(i));
+        }
+        return count;
     }
 }

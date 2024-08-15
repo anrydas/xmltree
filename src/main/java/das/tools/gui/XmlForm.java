@@ -1,8 +1,9 @@
 package das.tools.gui;
 
 import das.tools.gui.entity.*;
-import das.tools.gui.menu.PopupClickListener;
+import das.tools.gui.form.LoadTreeDataTask;
 import das.tools.gui.menu.AppMenus;
+import das.tools.gui.menu.PopupClickListener;
 import das.tools.gui.menu.action.AppActions;
 import das.tools.gui.search.SearchProcessor;
 import das.tools.gui.search.SearchTask;
@@ -11,7 +12,10 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
 import javax.swing.*;
-import javax.swing.event.*;
+import javax.swing.event.MenuEvent;
+import javax.swing.event.MenuListener;
+import javax.swing.event.TreeSelectionEvent;
+import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
 import javax.swing.tree.TreePath;
@@ -19,14 +23,16 @@ import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
 import java.awt.datatransfer.Clipboard;
 import java.awt.datatransfer.StringSelection;
-import java.awt.event.*;
+import java.awt.event.ActionEvent;
+import java.awt.event.KeyEvent;
+import java.awt.event.WindowEvent;
 import java.beans.PropertyChangeListener;
 import java.io.File;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 
-public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
+public class XmlForm implements TreeSelectionListener {
     public static final JFileChooser dlgOpen = new JFileChooser();
     protected static final String FMT_FILE_NAME = "File: <b>%s</b> (<i>%s</i>)";
     protected static final String FMT_TAG = "<i>tag:</i>&nbsp;<font color='blue' size='5'><b>%s</b></font>%s<br/>";
@@ -46,6 +52,9 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         framesList = new ArrayList<>(5);
     }
 
+    private ProgressMonitor loadingFileMonitor;
+    private int loadingFileProgress;
+
 
     public XmlForm(String fileName) {
         this.fileName = fileName;
@@ -57,18 +66,11 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         guiView.getSearchButton().addActionListener((e) -> btSearchClicked());
         guiView.getPreviousButton().addActionListener((e) -> findBackward());
         guiView.getNextButton().addActionListener((e) -> findForward());
-        guiView.getSearchProgressBar().addChangeListener(getChangeProgressListener());
         javax.swing.SwingUtilities.invokeLater(() -> {
             openFileDialogExecute();
             createGUI();
             loadDataIntoTree();
         });
-    }
-
-    private ChangeListener getChangeProgressListener() {
-        return changeEvent -> {
-            setSearchResultText(0, searchProcessor.getTotalResults());
-        };
     }
 
     public void openFile() {
@@ -189,25 +191,17 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
 
     private void loadDataIntoTree() {
         xmlFile = new XmlFile(fileName);
+        ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
         DefaultMutableTreeNode top = new DefaultMutableTreeNode(xmlFile.getName());
         DefaultMutableTreeNode root =
                 new DefaultMutableTreeNode(
                         new XmlTagInfo(xmlFile.getRootElement()));
         top.add(root);
-        Thread thread = new Thread() {
-            @Override
-            public void run() {
-                super.run();
-                createNodes(root, xmlFile.getRootNode());
-                ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
-            }
-        };
-        thread.setDaemon(true);
-        thread.start();
-
-        DefaultTreeModel model = new DefaultTreeModel(top);
+        loadingFileProgress = 0;
+        loadingFileMonitor = new ProgressMonitor(SwingUtilities.getWindowAncestor(guiView.getRootPanel()), "Loading XML structure...", "", loadingFileProgress, xmlFile.getAllNodesCount());
+        new LoadTreeDataTask(this, xmlFile, root).execute();
         JTree tree = guiView.getTree();
-        tree.setModel(model);
+        tree.setModel(new DefaultTreeModel(top));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         tree.addTreeSelectionListener(this);
         tree.setShowsRootHandles(true);
@@ -227,8 +221,8 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
         }
     }
 
-    private void createNodes(DefaultMutableTreeNode node, Node element) {
-        DefaultMutableTreeNode treeNode = null;
+    public void createNodes(DefaultMutableTreeNode node, Node element) {
+        DefaultMutableTreeNode treeNode;
         NodeList list = xmlFile.getChild(element);
         for (int i = 0; i < list.getLength(); i++) {
             Node n = list.item(i);
@@ -237,6 +231,8 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
                 treeNode = new DefaultMutableTreeNode(tagInfo);
                 node.add(treeNode);
                 createNodes(treeNode, n);
+                loadingFileProgress++;
+                loadingFileMonitor.setProgress(loadingFileProgress);
             }
         }
     }
@@ -499,5 +495,9 @@ public class XmlForm implements TreeSelectionListener/*, PopupMenuAction*/ {
 
     public JProgressBar getProgressBar() {
         return guiView.getSearchProgressBar();
+    }
+
+    public AppActions getAppActions() {
+        return appActions;
     }
 }

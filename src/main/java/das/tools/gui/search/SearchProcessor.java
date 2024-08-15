@@ -2,8 +2,8 @@ package das.tools.gui.search;
 
 import das.tools.gui.Utils;
 import das.tools.gui.entity.AttrInfo;
-import das.tools.gui.entity.SearchResultList;
 import das.tools.gui.entity.SearchResult;
+import das.tools.gui.entity.SearchResultList;
 import das.tools.gui.entity.XmlTagInfo;
 
 import javax.swing.*;
@@ -50,16 +50,8 @@ public class SearchProcessor {
         isSearchCompleted = true;
     }
 
-    public int getAllNodesCount() {
-        return getNodesCount(rootTreeNode);
-    }
-
-    private int getNodesCount(DefaultMutableTreeNode node) {
-        int count = 1;
-        for (int i = 0; i < node.getChildCount(); i++) {
-            count = count + getNodesCount((DefaultMutableTreeNode) node.getChildAt(i));
-        }
-        return count;
+    private int getAllNodesCount() {
+        return Utils.getNodesCount(rootTreeNode);
     }
 
     public int getCurrentProgress() {
@@ -85,44 +77,38 @@ public class SearchProcessor {
     }
 
     private void searchInNode(DefaultMutableTreeNode node) {
-        /*int i = 0;
-        do {*/
-            DefaultMutableTreeNode currentNode = (DefaultMutableTreeNode) node/*.getChildAt(i)*/;
-            int searchStringPosition = 0;
-            XmlTagInfo tagInfo = (XmlTagInfo) currentNode.getUserObject();
+        int searchStringPosition = 0;
+        XmlTagInfo tagInfo = (XmlTagInfo) node.getUserObject();
         int searchLength = searchResult.getSearchString().length();
         if (searchType.isSearchInTagName()) {
-                searchInWord(tagInfo.getTagName(), currentNode, searchStringPosition);
-                searchStringPosition = searchStringPosition + searchLength;
-            }
-            if (searchType.isSearchInTagValues() && Utils.isNotEmpty(tagInfo.getValue())) {
-                searchInWord(tagInfo.getValue(), currentNode, searchStringPosition);
-                searchStringPosition = searchStringPosition + searchLength;
-            }
-            if (searchType.isSearchInAttrNames() || searchType.isSearchInAttrValues()) {
-                if (tagInfo.getAttributes() != null && tagInfo.getAttributes().size() > 0) {
-                    for (AttrInfo attrInfo : tagInfo.getAttributes()) {
-                        if (searchType.isSearchInAttrNames()) {
-                            searchInWord(attrInfo.getName(), currentNode, searchStringPosition);
-                            searchStringPosition = searchStringPosition + searchLength;
-                        }
-                        if (searchType.isSearchInAttrValues()) {
-                            searchInWord(attrInfo.getValue(), currentNode, searchStringPosition);
-                            searchStringPosition = searchStringPosition + searchLength;
-                        }
+            searchInWord(tagInfo.getTagName(), node, searchStringPosition);
+            searchStringPosition = searchStringPosition + searchLength;
+        }
+        if (searchType.isSearchInTagValues() && Utils.isNotEmpty(tagInfo.getValue())) {
+            searchInWord(tagInfo.getValue(), node, searchStringPosition);
+            searchStringPosition = searchStringPosition + searchLength;
+        }
+        if (searchType.isSearchInAttrNames() || searchType.isSearchInAttrValues()) {
+            if (tagInfo.getAttributes() != null && tagInfo.getAttributes().size() > 0) {
+                for (AttrInfo attrInfo : tagInfo.getAttributes()) {
+                    if (searchType.isSearchInAttrNames()) {
+                        searchInWord(attrInfo.getName(), node, searchStringPosition);
+                        searchStringPosition = searchStringPosition + searchLength;
+                    }
+                    if (searchType.isSearchInAttrValues()) {
+                        searchInWord(attrInfo.getValue(), node, searchStringPosition);
+                        searchStringPosition = searchStringPosition + searchLength;
                     }
                 }
             }
-           /* i++;
-        } while (i < node.getChildCount());*/
+        }
     }
 
     private void searchInWord(String currentWord, DefaultMutableTreeNode node, int pos) {
         String searchString = searchResult.getSearchString();
         int stringLength = searchString.length();
         if (currentWord.toLowerCase().contains(searchString.toLowerCase()) ||
-                ((LevenshteinDistance.calculateDynamic(searchString.toLowerCase(), currentWord.toLowerCase()) * 100 / stringLength) <= MAX_DISTANCE_OF_LENGTH_PERCENT))
-        {
+                ((LevenshteinDistance.calculateDynamic(searchString.toLowerCase(), currentWord.toLowerCase()) * 100 / stringLength) <= MAX_DISTANCE_OF_LENGTH_PERCENT)) {
             XmlTagInfo tagInfo = (XmlTagInfo) node.getUserObject();
             searchResult.putIntoResult(node, tagInfo.getText().toLowerCase().indexOf(searchString, pos), stringLength,
                     selectedTreeNode != null && isAfterStartSearchPosition);

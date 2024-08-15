@@ -1,10 +1,9 @@
 package das.tools.gui.menu;
 
 import das.tools.gui.XmlForm;
-import das.tools.gui.menu.action.*;
+import das.tools.gui.menu.action.AppActions;
 
 import javax.swing.*;
-import java.awt.event.ActionEvent;
 import java.awt.event.InputEvent;
 import java.awt.event.KeyEvent;
 

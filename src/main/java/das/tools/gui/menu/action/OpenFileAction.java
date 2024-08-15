@@ -4,7 +4,6 @@ import das.tools.gui.XmlForm;
 
 import javax.swing.*;
 import java.awt.event.ActionEvent;
-import java.awt.event.KeyEvent;
 
 public class OpenFileAction extends AbstractAction {
     private final XmlForm form;
