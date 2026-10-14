@@ -5,27 +5,34 @@ import org.w3c.dom.Node;
 import javax.xml.transform.*;
 import javax.xml.transform.dom.DOMSource;
 import javax.xml.transform.stream.StreamResult;
-import java.io.ByteArrayOutputStream;
+import java.io.StringWriter;
 import java.util.List;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
+
 public class XmlTagInfo {
-    private String tagName = "";
-    private List<AttrInfo> attributes = null;
-    private String text = "";
-    private String value = "";
+    static final String NO_FILE_TEXT = "There is no file selected.\nTo select file press 'Open' button\nor\nlaunch the Application with file name as 1st parameter.";
+    // DOM is not thread-safe even for reads, and the text is requested from both the EDT and the search worker
+    private static final Object DOM_LOCK = new Object();
+    private static TransformerFactory transformerFactory;
+
+    private final String tagName;
+    private final List<AttrInfo> attributes;
+    private final String value;
+    private final Node node;
+    private String text;
 
     public XmlTagInfo(Node node){
         this.tagName = node.getNodeName();
         if (!tagName.equals(XmlFile.TAG_NO_FILE)) {
+            this.node = node;
             this.attributes = XmlFile.getAttributesList(node);
-            this.text = getSubText(node);
             Node firstChild = node.getFirstChild();
-            if (firstChild != null && firstChild.getNodeType() == Node.TEXT_NODE) {
-                this.value = firstChild.getTextContent().trim();
-            }
+            this.value = firstChild != null && firstChild.getNodeType() == Node.TEXT_NODE
+                    ? firstChild.getTextContent().trim() : "";
         } else {
-            this.text = "There is no file selected.\nTo select file press 'Open' button\nor\nlaunch the Application with file name as 1st parameter.";
+            this.node = null;
+            this.attributes = null;
+            this.value = "";
+            this.text = NO_FILE_TEXT;
         }
     }
 
@@ -41,8 +48,17 @@ public class XmlTagInfo {
         return attributes;
     }
 
+    /**
+     * Formatted XML of the tag with its whole subtree. Serialized on first request and cached:
+     * computing it eagerly for every node costs memory proportional to file size × depth.
+     */
     public String getText() {
-        return text;
+        synchronized (DOM_LOCK) {
+            if (text == null) {
+                text = getSubText(node);
+            }
+            return text;
+        }
     }
 
     @Override
@@ -50,10 +66,12 @@ public class XmlTagInfo {
         return this.tagName;
     }
 
-    private String getSubText(Node node) {
+    private static String getSubText(Node node) {
         try {
-            ByteArrayOutputStream out = new ByteArrayOutputStream();
-            Transformer transformer = TransformerFactory.newInstance().newTransformer();
+            if (transformerFactory == null) {
+                transformerFactory = TransformerFactory.newInstance();
+            }
+            Transformer transformer = transformerFactory.newTransformer();
             transformer.setOutputProperty(OutputKeys.OMIT_XML_DECLARATION, "yes");
             transformer.setOutputProperty(OutputKeys.METHOD, "xml");
             transformer.setOutputProperty(OutputKeys.INDENT, "yes");
@@ -61,13 +79,14 @@ public class XmlTagInfo {
             transformer.setOutputProperty(OutputKeys.ENCODING, "utf-8");
             transformer.setOutputProperty("{http://xml.apache.org/xslt}indent-amount", "4");
 
-            Source source = new DOMSource(node);
-            Result target = new StreamResult(out);
-            transformer.transform(source, target);
-
+            StringWriter out = new StringWriter();
+            transformer.transform(new DOMSource(node), new StreamResult(out));
             return out.toString();
         } catch (TransformerException e) {
-            throw new RuntimeException(e);
+            return "Can't format the tag: " + e.getMessageAndLocation();
+        } catch (StackOverflowError e) {
+            // the serializer is recursive; extremely deep documents can't be formatted, but the tree still works
+            return "Can't format the tag: the XML is nested too deeply";
         }
     }
 }

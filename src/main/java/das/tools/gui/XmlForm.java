@@ -1,15 +1,14 @@
 package das.tools.gui;
 
-import das.tools.gui.entity.*;
+import das.tools.gui.entity.XmlFile;
+import das.tools.gui.entity.XmlFileException;
+import das.tools.gui.entity.XmlTagInfo;
 import das.tools.gui.form.LoadTreeDataTask;
+import das.tools.gui.format.TagFormatter;
 import das.tools.gui.menu.AppMenus;
 import das.tools.gui.menu.PopupClickListener;
 import das.tools.gui.menu.action.AppActions;
-import das.tools.gui.search.SearchProcessor;
-import das.tools.gui.search.SearchTask;
-import das.tools.gui.search.SearchType;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
+import das.tools.gui.search.SearchController;
 
 import javax.swing.*;
 import javax.swing.event.MenuEvent;
@@ -18,62 +17,56 @@ import javax.swing.event.TreeSelectionEvent;
 import javax.swing.event.TreeSelectionListener;
 import javax.swing.tree.DefaultMutableTreeNode;
 import javax.swing.tree.DefaultTreeModel;
-import javax.swing.tree.TreePath;
 import javax.swing.tree.TreeSelectionModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
+import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.io.File;
 import java.net.URL;
-import java.util.ArrayList;
-import java.util.List;
 
+/** One application window showing one XML file. Must be created and used on the EDT. */
 public class XmlForm implements TreeSelectionListener {
-    public static final JFileChooser dlgOpen = new JFileChooser();
-    protected static final String FMT_FILE_NAME = "File: <b>%s</b> (<i>%s</i>)";
-    protected static final String FMT_TAG = "<i>tag:</i>&nbsp;<font color='blue' size='5'><b>%s</b></font>%s<br/>";
-    protected static final String FMT_VALUE = "&nbsp;=&nbsp;\"<font color='green' size='5'><b>%s</b></font>\"";
-    protected static final String FMT_ATTR = "<i>attr:</i>&nbsp;<font color='red' size='5'><b>%s</b></font>=\"<font color='green' size='5'><b>%s</b></font>\"<br/>";
     private final AppActions appActions;
-    private XmlFile xmlFile = null;
-    private String fileName = "";
-    private static boolean isFirst = true;
-    private static final java.util.List<JFrame> framesList;
-    private JFrame ownFrame;
     private final GuiView guiView;
     private final AppMenus appMenus;
-    private SearchProcessor searchProcessor;
+    private final SearchController searchController;
+    private final JFrame ownFrame;
+    private String fileName;
+    private XmlFile xmlFile = null;
 
-    static {
-        framesList = new ArrayList<>(5);
-    }
-
-    private ProgressMonitor loadingFileMonitor;
-    private int loadingFileProgress;
-
-
-    public XmlForm(String fileName) {
+    /**
+     * @param fileName      file to show; may be empty
+     * @param isStartWindow the first window of the application: asks for a file when {@code fileName} is empty
+     */
+    public XmlForm(String fileName, boolean isStartWindow) {
         this.fileName = fileName;
         appActions = new AppActions(this);
-        this.appMenus = new AppMenus(this, appActions);
+        appMenus = new AppMenus(this, appActions);
         guiView = new GuiView();
         guiView.getBtOpen().addActionListener(appActions.getOpenFileAction());
         guiView.getTextAttr().addMouseListener(new PopupClickListener(this, appMenus));
-        guiView.getSearchButton().addActionListener((e) -> btSearchClicked());
-        guiView.getPreviousButton().addActionListener((e) -> findBackward());
-        guiView.getNextButton().addActionListener((e) -> findForward());
-        javax.swing.SwingUtilities.invokeLater(() -> {
-            openFileDialogExecute();
-            createGUI();
-            loadDataIntoTree();
-        });
+        searchController = new SearchController(guiView, appActions);
+        if (isStartWindow) {
+            selectStartFile();
+        }
+        ownFrame = createGUI();
+        loadDataIntoTree();
+    }
+
+    private void selectStartFile() {
+        if (Utils.isNotEmpty(fileName)) {
+            XmlFileChooser.setCurrentDirectory(new File(fileName).getAbsoluteFile());
+        } else {
+            fileName = XmlFileChooser.select(null);
+        }
     }
 
     public void openFile() {
-        String selectedFile = selectFile();
+        String selectedFile = XmlFileChooser.select(ownFrame);
         if (Utils.isNotEmpty(selectedFile)) {
-            new XmlForm(selectedFile);
+            new XmlForm(selectedFile, false);
         }
     }
 
@@ -81,50 +74,36 @@ public class XmlForm implements TreeSelectionListener {
         return appMenus.getAttrMenu();
     }
 
-    private String selectFile() {
-        if (guiView.getRootPanel() == null) sleep();
-        dlgOpen.setAcceptAllFileFilterUsed(false);
-        dlgOpen.setFileFilter(new FilesFilter());
-        int returnValue = dlgOpen.showOpenDialog(guiView.getRootPanel());
-        if (returnValue == JFileChooser.APPROVE_OPTION) {
-            return dlgOpen.getSelectedFile().getAbsolutePath();
-        }
-        return "";
-    }
-
-    private void sleep() {
-        try {
-            Thread.sleep(1000);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-    }
-    public void createGUI() {
+    private JFrame createGUI() {
         JFrame frame = new JFrame();
         frame.setMinimumSize(new Dimension(800, 600));
         frame.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setApplicationIcon(frame);
         frame.setContentPane(guiView.getRootPanel());
         frame.setJMenuBar(guiView.getMenuBar());
-        frame.addWindowListener(new java.awt.event.WindowAdapter() {
+        appMenus.getFileMenu(guiView.getFileMenu());
+        appMenus.getSearchMenu(guiView.getSearchMenu());
+        // Rebuilt whenever the set of windows changes, so its hotkeys (Ctrl+F4, Ctrl+0..8) work without opening the menu
+        JMenu windowsMenu = guiView.getWindowMenu();
+        Runnable rebuildWindowsMenu = () -> {
+            windowsMenu.removeAll();
+            appMenus.getWindowsMenu(windowsMenu, frame);
+        };
+        frame.addWindowListener(new WindowAdapter() {
             @Override
-            public void windowClosing(java.awt.event.WindowEvent windowEvent) {
-                framesList.remove(frame);
+            public void windowClosed(WindowEvent windowEvent) {
+                AppWindows.removeChangeListener(rebuildWindowsMenu);
+                AppWindows.unregister(frame);
             }
         });
-        framesList.add(frame);
-        ownFrame = frame;
-        JMenu fileMenu = guiView.getFileMenu();
-        appMenus.getFileMenu(fileMenu);
-        JMenu searchMenu = guiView.getSearchMenu();
-        appMenus.getSearchMenu(searchMenu);
-        JMenu windowsMenu = guiView.getWindowMenu();
-        windowsMenu.addMenuListener(windowsMenuListener(windowsMenu));
+        AppWindows.addChangeListener(rebuildWindowsMenu);
+        AppWindows.register(frame);
         JMenu themeMenu = guiView.getThemeMenu();
-        themeMenu.addMenuListener(themeMenuListener(themeMenu));
+        themeMenu.addMenuListener(rebuildOnSelect(themeMenu, () -> appMenus.getThemeMenu(themeMenu)));
         addEscapeKeyAction(frame);
         frame.pack();
         frame.setVisible(true);
+        return frame;
     }
 
     private void addEscapeKeyAction(JFrame frame) {
@@ -133,7 +112,7 @@ public class XmlForm implements TreeSelectionListener {
         pn.getActionMap().put("Escape", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent actionEvent) {
-                hideSearchPanel();
+                searchController.hidePanel();
             }
         });
         pn.getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW).put(keyStroke, "Escape");
@@ -146,132 +125,88 @@ public class XmlForm implements TreeSelectionListener {
         }
     }
 
-    private MenuListener themeMenuListener(JMenu menu) {
+    /** Menu whose items depend on the current state (opened windows, theme) is rebuilt every time it opens. */
+    private static MenuListener rebuildOnSelect(JMenu menu, Runnable fill) {
         return new MenuListener() {
             @Override
             public void menuSelected(MenuEvent menuEvent) {
                 menu.removeAll();
-                appMenus.getThemeMenu(menu);
+                fill.run();
             }
 
             @Override
             public void menuDeselected(MenuEvent menuEvent) {
-
             }
 
             @Override
             public void menuCanceled(MenuEvent menuEvent) {
-
-            }
-        };
-    }
-
-    private MenuListener windowsMenuListener(JMenu menu) {
-        return new MenuListener() {
-            @Override
-            public void menuSelected(MenuEvent menuEvent) {
-                menu.removeAll();
-                appMenus.getWindowsMenu(menu);
-            }
-
-            @Override
-            public void menuDeselected(MenuEvent menuEvent) {
-
-            }
-
-            @Override
-            public void menuCanceled(MenuEvent menuEvent) {
-
             }
         };
     }
 
     private void loadDataIntoTree() {
-        xmlFile = new XmlFile(fileName);
-        ((JFrame) SwingUtilities.getWindowAncestor(guiView.getRootPanel())).setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
-        DefaultMutableTreeNode top = new DefaultMutableTreeNode(xmlFile.getName());
-        DefaultMutableTreeNode root =
-                new DefaultMutableTreeNode(
-                        new XmlTagInfo(xmlFile.getRootElement()));
-        top.add(root);
-        loadingFileProgress = 0;
-        loadingFileMonitor = new ProgressMonitor(SwingUtilities.getWindowAncestor(guiView.getRootPanel()), "Loading XML structure...", "", loadingFileProgress, xmlFile.getAllNodesCount());
-        new LoadTreeDataTask(this, xmlFile, root).execute();
+        xmlFile = openXmlFile(fileName);
+        ownFrame.setTitle(String.format("Xml Tree: %s", xmlFile.getName()));
+        AppWindows.fireChanged();
         JTree tree = guiView.getTree();
-        tree.setModel(new DefaultTreeModel(top));
+        tree.setModel(new DefaultTreeModel(new DefaultMutableTreeNode(xmlFile.getName())));
         tree.getSelectionModel().setSelectionMode(TreeSelectionModel.SINGLE_TREE_SELECTION);
         tree.addTreeSelectionListener(this);
         tree.setShowsRootHandles(true);
+        appActions.getSearchAction().setEnabled(false);
+        ProgressMonitor loadingFileMonitor = new ProgressMonitor(ownFrame, "Loading XML structure...", "", 0, xmlFile.getAllNodesCount());
+        new LoadTreeDataTask(this, xmlFile, loadingFileMonitor).execute();
     }
 
-    private void openFileDialogExecute() {
-        if (isFirst) {
-            isFirst = false;
-            dlgOpen.setCurrentDirectory(new File(System.getProperty("user.dir")));
-            String parameterFile = Main.getAppParameter();
-            if (Utils.isNotEmpty(parameterFile)) {
-                fileName = parameterFile;
-                dlgOpen.setCurrentDirectory(new File(fileName));
-            } else {
-                fileName = selectFile();
-            }
+    private XmlFile openXmlFile(String fileName) {
+        try {
+            return new XmlFile(fileName);
+        } catch (XmlFileException e) {
+            JOptionPane.showMessageDialog(ownFrame, e.getMessage(),
+                    String.format("Error open file '%s'", fileName),
+                    JOptionPane.ERROR_MESSAGE);
+            return XmlFile.noFile(fileName);
         }
     }
 
-    public void createNodes(DefaultMutableTreeNode node, Node element) {
-        DefaultMutableTreeNode treeNode;
-        NodeList list = xmlFile.getChild(element);
-        for (int i = 0; i < list.getLength(); i++) {
-            Node n = list.item(i);
-            if (n.getNodeType() == Node.ELEMENT_NODE) {
-                XmlTagInfo tagInfo = new XmlTagInfo(n);
-                treeNode = new DefaultMutableTreeNode(tagInfo);
-                node.add(treeNode);
-                createNodes(treeNode, n);
-                loadingFileProgress++;
-                loadingFileMonitor.setProgress(loadingFileProgress);
-            }
-        }
+    public void treeLoaded(DefaultMutableTreeNode top) {
+        guiView.getTree().setModel(new DefaultTreeModel(top));
+        appActions.getSearchAction().setEnabled(true);
+    }
+
+    public void treeLoadFailed(Throwable cause) {
+        JOptionPane.showMessageDialog(ownFrame, String.valueOf(cause),
+                String.format("Error loading file '%s'", fileName),
+                JOptionPane.ERROR_MESSAGE);
     }
 
     @Override
     public void valueChanged(TreeSelectionEvent e) {
-        DefaultMutableTreeNode treeNode = (DefaultMutableTreeNode)
-                guiView.getTree().getLastSelectedPathComponent();
+        DefaultMutableTreeNode treeNode = getSelectedNode();
         if (treeNode == null) {
-            //Nothing selected.
             return;
         }
         if (treeNode != guiView.getTree().getModel().getRoot()) {
             XmlTagInfo tag = (XmlTagInfo) treeNode.getUserObject();
-            String tagValue = tag.getValue();
-            StringBuilder tagText = new StringBuilder(String.format(FMT_TAG, tag,
-                    Utils.isNotEmpty(tagValue) ? String.format(FMT_VALUE, tagValue) : ""));
-
-            java.util.List<AttrInfo> attrs = tag.getAttributes();
-            if (attrs != null) {
-                for (AttrInfo a : attrs) {
-                    tagText.append(String.format(FMT_ATTR, a.getName(), a.getValue()));
-                }
-            }
-            guiView.getTextAttr().setText(tagText.toString());
+            guiView.getTextAttr().setText(TagFormatter.toHtml(tag));
             guiView.getRawXmlText().setText(tag.getText());
         } else {
-            guiView.getTextAttr().setText(String.format(FMT_FILE_NAME, xmlFile.getFileName(), xmlFile.getFullFileName()));
+            guiView.getTextAttr().setText(TagFormatter.fileToHtml(xmlFile.getFileName(), xmlFile.getFullFileName()));
             guiView.getRawXmlText().setText("");
         }
     }
 
+    private DefaultMutableTreeNode getSelectedNode() {
+        return (DefaultMutableTreeNode) guiView.getTree().getLastSelectedPathComponent();
+    }
+
     public boolean isCurrentlyRootSelected() {
-        DefaultMutableTreeNode treeNode = (DefaultMutableTreeNode)
-                guiView.getTree().getLastSelectedPathComponent();
+        DefaultMutableTreeNode treeNode = getSelectedNode();
         return treeNode == null || treeNode.isRoot();
     }
 
     private XmlTagInfo getCurrentTag() {
-        DefaultMutableTreeNode treeNode = (DefaultMutableTreeNode)
-                guiView.getTree().getLastSelectedPathComponent();
-        return (XmlTagInfo) treeNode.getUserObject();
+        return (XmlTagInfo) getSelectedNode().getUserObject();
     }
 
     public int getCurrentTagAttrCount() {
@@ -279,58 +214,27 @@ public class XmlForm implements TreeSelectionListener {
     }
 
     public void copyAttributesNames() {
-        XmlTagInfo tag = getCurrentTag();
-        java.util.List<AttrInfo> attrs = tag.getAttributes();
-        if (attrs != null) {
-            StringBuilder sb = new StringBuilder();
-            for (AttrInfo attrInfo : attrs) {
-                sb.append(attrInfo.getName()).append("\n");
-            }
-            Utils.copyToClip(sb.toString());
-        }
-    }
-
-    public void copyTagAction() {
-        XmlTagInfo tag = getCurrentTag();
-        Utils.copyToClip(tag.getTagName());
-    }
-
-    public void copyAllAsXmlAction() {
-        XmlTagInfo tag = getCurrentTag();
-        Utils.copyToClip(tag.getText());
-    }
-
-    public void copyAsKeyValueAction() {
-        XmlTagInfo tag = getCurrentTag();
-        StringBuilder sb = new StringBuilder();
-        sb.append(tag.getTagName());
-        if (Utils.isNotEmpty(tag.getValue())) sb.append("=").append(tag.getValue());
-        sb.append("\n");
-        java.util.List<AttrInfo> attrs = tag.getAttributes();
-        if (attrs != null) {
-            for (AttrInfo attrInfo : attrs) {
-                sb.append(attrInfo.getName()).append("=").append(attrInfo.getValue()).append("\n");
-            }
-        }
-        Utils.copyToClip(sb.toString());
+        Utils.copyToClip(TagFormatter.attributeNames(getCurrentTag()));
     }
 
     public void copyAttributesValues() {
-        XmlTagInfo tag = getCurrentTag();
-        java.util.List<AttrInfo> attrs = tag.getAttributes();
-        StringBuilder sb = new StringBuilder();
-        for (AttrInfo attrInfo : attrs) {
-            sb.append(attrInfo.getValue()).append("\n");
-        }
-        Utils.copyToClip(sb.toString());
+        Utils.copyToClip(TagFormatter.attributeValues(getCurrentTag()));
     }
 
-    public List<JFrame> getFramesList() {
-        return framesList;
+    public void copyTagAction() {
+        Utils.copyToClip(getCurrentTag().getTagName());
+    }
+
+    public void copyAllAsXmlAction() {
+        Utils.copyToClip(getCurrentTag().getText());
+    }
+
+    public void copyAsKeyValueAction() {
+        Utils.copyToClip(TagFormatter.keyValue(getCurrentTag()));
     }
 
     public void closeAll() {
-        for (JFrame frame : framesList) {
+        for (JFrame frame : AppWindows.getFrames()) {
             if (frame != this.ownFrame) frame.dispose();
         }
         closeThis();
@@ -352,133 +256,14 @@ public class XmlForm implements TreeSelectionListener {
     }
 
     public void findIn() {
-        JPanel searchPanel = guiView.getSearchPanel();
-        boolean isPanelVisible = searchPanel.isVisible();
-        if (!isPanelVisible) {
-            showSearchPanel();
-        } else {
-            JTextField textField = guiView.getSearchTextField();
-            if (Utils.isNotEmpty(textField.getText())) {
-                textField.setText("");
-                textField.requestFocus();
-                initSearch();
-            } else {
-                hideSearchPanel();
-            }
-        }
-    }
-
-    private void showSearchPanel() {
-        initSearch();
-        guiView.getSearchPanel().setVisible(true);
-        guiView.getSearchTextField().requestFocus();
-    }
-
-    private void hideSearchPanel() {
-        guiView.getSearchPanel().setVisible(false);
-        initSearch();
-    }
-
-    private void initSearch() {
-        searchProcessor = null;
-        setSearchResultText(0, 0);
-        setFwdBwdControlsEnabled(false);
-    }
-
-    private void setSearchResultText(int current, int total) {
-        guiView.getFoundLabel().setText(String.format(GuiView.FOUND_RESULT_LABEL, (total > 0) ? current + 1 : 0, total));
-    }
-
-    private void btSearchClicked() {
-        initSearch();
-        String searchString = guiView.getSearchTextField().getText();
-        SearchType searchType = new SearchType(guiView.getSearchInTagNames().isSelected(),
-                guiView.getSearchInTagValues().isSelected(),
-                guiView.getSearchInAttrNames().isSelected(),
-                guiView.getSearchInAttrValues().isSelected());
-        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) guiView.getTree().getModel().getRoot();
-        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) guiView.getTree().getLastSelectedPathComponent();
-        searchProcessor = new SearchProcessor(searchString, rootNode, selectedNode, searchType);
-        searchWithProgress();
-    }
-
-    private void searchWithProgress() {
-        guiView.getSearchButton().setEnabled(false);
-        guiView.getSearchProgressBar().setVisible(true);
-        SearchTask task = new SearchTask(this, searchProcessor);
-        task.execute();
-    }
-
-    public void searchCompleted() {
-        DefaultMutableTreeNode rootNode = (DefaultMutableTreeNode) guiView.getTree().getModel().getRoot();
-        DefaultMutableTreeNode selectedNode = (DefaultMutableTreeNode) guiView.getTree().getLastSelectedPathComponent();
-        if (searchProcessor.isNotEmptyResult()) {
-            if (selectedNode != null && selectedNode != rootNode) {
-                searchProcessor.setCurrentSearchResultValue();
-                showResultInTree(searchProcessor.getCurrentSearchResultValue());
-            } else {
-                findForward();
-            }
-            setFwdBwdControlsEnabled(true);
-        }
-        setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor.getTotalResults());
-        guiView.getSearchButton().setEnabled(true);
-        guiView.getSearchProgressBar().setVisible(false);
-    }
-
-    private void setFwdBwdControlsEnabled(boolean value) {
-        appActions.getFindForwardAction().setEnabled(value);
-        appActions.getFindBackwardAction().setEnabled(value);
-        guiView.getPreviousButton().setEnabled(value);
-        guiView.getNextButton().setEnabled(value);
+        searchController.toggle();
     }
 
     public void findForward() {
-        doFind(true);
+        searchController.findForward();
     }
 
     public void findBackward() {
-        doFind(false);
-    }
-
-    private void doFind(boolean forward) {
-        if (searchProcessor != null && searchProcessor.isNotEmptyResult()) {
-            if (forward) {
-                showResultInTree(searchProcessor.getNextSearchResult());
-            } else {
-                showResultInTree(searchProcessor.getPrevSearchResult());
-            }
-            setSearchResultText(searchProcessor.getCurrentResultPosition(), searchProcessor. getTotalResults());
-            setFindPositionText();
-        }
-    }
-
-    private void setFindPositionText() {
-        JTextArea text = guiView.getRawXmlText();
-        text.requestFocus();
-        int start = (int) searchProcessor.getCurrentSearchResultValue().getResultStart();
-        if (start > -1) {
-            text.setSelectionStart(start);
-            text.setSelectionEnd(start + searchProcessor.getCurrentSearchResultValue().getResultLength());
-        } else {
-            text.setSelectionStart(0);
-            text.setSelectionEnd(text.getText().length());
-        }
-    }
-
-    private void showResultInTree(SearchResult results) {
-        TreePath path = new TreePath(results.getTreeNode().getPath());
-        JTree tree = guiView.getTree();
-        tree.setSelectionPath(path);
-        tree.scrollPathToVisible(path);
-        tree.expandPath(path);
-    }
-
-    public JProgressBar getSearchProgressBar() {
-        return guiView.getSearchProgressBar();
-    }
-
-    public AppActions getAppActions() {
-        return appActions;
+        searchController.findBackward();
     }
 }

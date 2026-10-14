@@ -1,2 +1,2 @@
-#!/usr/bin/bash
-java -jar xmltree.jar $1
+#!/usr/bin/env bash
+java -jar "$(dirname "$0")/xmltree.jar" "$@"

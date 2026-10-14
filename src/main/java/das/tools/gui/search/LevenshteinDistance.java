@@ -1,29 +1,6 @@
 package das.tools.gui.search;
 
-import java.util.Arrays;
-
 public class LevenshteinDistance {
-    public static int calculateRecursive(String s1, String s2) {
-        if (s1.isEmpty()) {
-            return s2.length();
-        }
-
-        if (s2.isEmpty()) {
-            return s1.length();
-        }
-
-        int sub = calculateRecursive(s1.substring(1),
-                s2.substring(1)) + substCost(s1.charAt(0), s2.charAt(0));
-        int ins = calculateRecursive(s1, s2.substring(1)) + 1;
-        int del = calculateRecursive(s1.substring(1), s2) + 1;
-
-        return min(sub, ins, del);
-    }
-
-    public static int min(int... numbers) {
-        return Arrays.stream(numbers).min().orElse(Integer.MAX_VALUE);
-    }
-
     public static int substCost(char a, char b) {
         return a == b ? 0 : 1;
     }
@@ -40,10 +17,8 @@ public class LevenshteinDistance {
                     dp[i][j] = i;
                 }
                 else {
-                    dp[i][j] = min(dp[i - 1][j - 1]
-                                    + substCost(s1.charAt(i - 1), s2.charAt(j - 1)),
-                            dp[i - 1][j] + 1,
-                            dp[i][j - 1] + 1);
+                    dp[i][j] = Math.min(dp[i - 1][j - 1] + substCost(s1.charAt(i - 1), s2.charAt(j - 1)),
+                            Math.min(dp[i - 1][j] + 1, dp[i][j - 1] + 1));
                 }
             }
         }

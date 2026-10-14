@@ -6,8 +6,9 @@ import das.tools.gui.entity.SearchResult;
 import das.tools.gui.entity.SearchResultList;
 import das.tools.gui.entity.XmlTagInfo;
 
-import javax.swing.*;
 import javax.swing.tree.DefaultMutableTreeNode;
+import java.util.Enumeration;
+import java.util.function.IntConsumer;
 
 public class SearchProcessor {
 
@@ -15,13 +16,12 @@ public class SearchProcessor {
     private final SearchResultList searchResult;
     private final DefaultMutableTreeNode rootTreeNode;
     private final DefaultMutableTreeNode selectedTreeNode;
-    private boolean isSearchCompleted;
     private final SearchType searchType;
     private int currentResultPosition;
     private SearchResult currentSearchResultValue = null;
     private boolean isAfterStartSearchPosition;
     private int currentProgress;
-    private JProgressBar progressBar = null;
+    private IntConsumer progressListener = null;
 
     public SearchProcessor(String searchString, DefaultMutableTreeNode rootNode, DefaultMutableTreeNode selectedNode, SearchType searchType) {
         searchResult = new SearchResultList(searchString);
@@ -32,46 +32,29 @@ public class SearchProcessor {
         isAfterStartSearchPosition = false;
     }
 
-    public SearchResultList getSearchResult() {
-        if (!isSearchCompleted) {
-            doSearch();
-        }
-        return searchResult;
-    }
-
     public void doSearch() {
         currentProgress = 0;
-        if (progressBar != null) {
-            progressBar.setMinimum(0);
-            progressBar.setMaximum(getAllNodesCount());
-            progressBar.setValue(0);
-        }
         searchInHierarchy(rootTreeNode);
-        isSearchCompleted = true;
     }
 
-    private int getAllNodesCount() {
-        return Utils.getNodesCount(rootTreeNode);
+    /** Number of tag nodes to search, i.e. the final progress value. */
+    public int getAllNodesCount() {
+        return Utils.getNodesCount(rootTreeNode) - 1;
     }
 
-    public int getCurrentProgress() {
-        return currentProgress;
-    }
-
-    private void searchInHierarchy(DefaultMutableTreeNode node) {
-        int childCount = node.getChildCount();
-        for (int i = 0; i < childCount; i++) {
-            DefaultMutableTreeNode childNode = (DefaultMutableTreeNode) node.getChildAt(i);
-            if (childNode == selectedTreeNode) {
+    /** Visits nodes in document order (parent before its children), so "next" moves down the tree. */
+    private void searchInHierarchy(DefaultMutableTreeNode root) {
+        Enumeration<?> nodes = root.preorderEnumeration();
+        nodes.nextElement(); // the root itself holds the file name, not a tag
+        while (nodes.hasMoreElements()) {
+            DefaultMutableTreeNode node = (DefaultMutableTreeNode) nodes.nextElement();
+            if (node == selectedTreeNode) {
                 isAfterStartSearchPosition = true;
             }
-            if (childNode.getChildCount() > 0) {
-                searchInHierarchy(childNode);
-            }
-            searchInNode(childNode);
+            searchInNode(node);
             currentProgress++;
-            if (progressBar != null) {
-                progressBar.setValue(currentProgress);
+            if (progressListener != null) {
+                progressListener.accept(currentProgress);
             }
         }
     }
@@ -110,7 +93,7 @@ public class SearchProcessor {
         if (currentWord.toLowerCase().contains(searchString.toLowerCase()) ||
                 (distanceOfLengthPercent(currentWord, searchString, stringLength) <= MAX_DISTANCE_OF_LENGTH_PERCENT)) {
             XmlTagInfo tagInfo = (XmlTagInfo) node.getUserObject();
-            searchResult.putIntoResult(node, tagInfo.getText().toLowerCase().indexOf(searchString, pos), stringLength,
+            searchResult.putIntoResult(node, tagInfo.getText().toLowerCase().indexOf(searchString.toLowerCase(), pos), stringLength,
                     selectedTreeNode != null && isAfterStartSearchPosition);
         }
     }
@@ -143,14 +126,20 @@ public class SearchProcessor {
         return currentSearchResultValue;
     }
 
-    public void setCurrentSearchResultValue() {
+    /**
+     * Positions on the first result at or after the node selected when the search started.
+     *
+     * @return false if there is no such result (all matches are before the selected node)
+     */
+    public boolean setCurrentSearchResultValue() {
         for (int i = 0; i < searchResult.getResults().size(); i++) {
             if (searchResult.getResults().get(i).isStartSearchPositionHere()) {
                 currentResultPosition = i;
                 currentSearchResultValue = searchResult.getResults().get(currentResultPosition);
-                return;
+                return true;
             }
         }
+        return false;
     }
 
     public SearchResult getCurrentSearchResultValue() {
@@ -165,8 +154,9 @@ public class SearchProcessor {
         return isNotEmptyResult() ? searchResult.getResults().size() : 0;
     }
 
-    public void setProgressBar(JProgressBar progressBar) {
-        this.progressBar = progressBar;
+    /** Called from the searching thread with the number of processed nodes. */
+    public void setProgressListener(IntConsumer progressListener) {
+        this.progressListener = progressListener;
     }
 
     @Override
@@ -175,13 +165,12 @@ public class SearchProcessor {
                 "searchResult=" + searchResult +
                 ", rootTreeNode=" + rootTreeNode +
                 ", selectedTreeNode=" + selectedTreeNode +
-                ", isSearchCompleted=" + isSearchCompleted +
                 ", searchType=" + searchType +
                 ", currentResultPosition=" + currentResultPosition +
                 ", currentSearchResultValue=" + currentSearchResultValue +
                 ", isAfterStartSearchPosition=" + isAfterStartSearchPosition +
                 ", currentProgress=" + currentProgress +
-                ", progressBar=" + progressBar +
+                ", progressListener=" + progressListener +
                 '}';
     }
 }

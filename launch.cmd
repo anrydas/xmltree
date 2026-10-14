@@ -1,1 +1,1 @@
-javaw -jar xmltree.jar %1
+javaw -jar "%~dp0xmltree.jar" %*

@@ -1,1 +1,5 @@
 /xmltree.iml
+/target/
+/.idea/
+/temp/
+/.mvn/wrapper/maven-wrapper.jar

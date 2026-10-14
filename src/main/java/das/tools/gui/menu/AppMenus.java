@@ -1,5 +1,6 @@
 package das.tools.gui.menu;
 
+import das.tools.gui.AppWindows;
 import das.tools.gui.XmlForm;
 import das.tools.gui.menu.action.AppActions;
 
@@ -41,8 +42,8 @@ public class AppMenus extends JPopupMenu {
         return menu;
     }
 
-    public void getWindowsMenu(JMenu parent) {
-        int windowsCount = form.getFramesList().size();
+    public void getWindowsMenu(JMenu parent, JFrame ownFrame) {
+        int windowsCount = AppWindows.getFrames().size();
         (parent.add(actions.getCloseThisAction()))
                 .setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.CTRL_MASK));
         if (windowsCount > 1) {
@@ -50,8 +51,8 @@ public class AppMenus extends JPopupMenu {
                     .setAccelerator(KeyStroke.getKeyStroke(KeyEvent.VK_F4, InputEvent.ALT_MASK));
             parent.addSeparator();
             int n = 1;
-            for (JFrame frame : form.getFramesList()) {
-                if (frame != form.getOwnFrame()) {
+            for (JFrame frame : AppWindows.getFrames()) {
+                if (frame != ownFrame) {
                     JMenuItem mi = parent.add(frame.getTitle());
                     mi.addActionListener(actionEvent -> form.focusWindow(frame));
                     if (n <= 9) {
@@ -72,14 +73,13 @@ public class AppMenus extends JPopupMenu {
             mi.addActionListener(actionEvent -> {
                 try {
                     UIManager.setLookAndFeel(info.getClassName());
-                    for (JFrame frame : form.getFramesList())
-                        if (frame != form.getOwnFrame()) {
-                            SwingUtilities.updateComponentTreeUI(frame.getContentPane());
-                        }
-                    SwingUtilities.updateComponentTreeUI(form.getOwnFrame().getContentPane());
+                    for (JFrame frame : AppWindows.getFrames()) {
+                        SwingUtilities.updateComponentTreeUI(frame);
+                    }
                 } catch (ClassNotFoundException | InstantiationException | IllegalAccessException |
                          UnsupportedLookAndFeelException e) {
-                    throw new RuntimeException(e);
+                    JOptionPane.showMessageDialog(form.getOwnFrame(), String.valueOf(e),
+                            String.format("Can't apply theme '%s'", info.getName()), JOptionPane.ERROR_MESSAGE);
                 }
             });
             bg.add(mi);
